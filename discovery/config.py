@@ -4,11 +4,12 @@
 
 from biothings.web.api.es.handlers import QueryHandler
 from biothings.web.settings.default import *
-from web.api.es.query_builder import DiscoveryQueryBuilder
-from web.api.handlers import ProxyHandler, RegistryHandler
-from web.handlers import APP_LIST as WEB_ENDPOINTS
-
-from config_key import COOKIE_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+from discovery.api.es.query_builder import DiscoveryQueryBuilder
+from discovery.api.handlers import (ProxyHandler, RegistryHandler,
+                                    SchemaViewHandler)
+from discovery.config_key import (COOKIE_SECRET, GITHUB_CLIENT_ID,
+                                  GITHUB_CLIENT_SECRET)
+from discovery.web.handlers import APP_LIST as WEB_ENDPOINTS
 
 # *****************************************************************************
 # Credentials
@@ -21,8 +22,8 @@ from config_key import COOKIE_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
 # *****************************************************************************
 # Elasticsearch
 # *****************************************************************************
-ES_INDEX = 'discovery'
-ES_DOC_TYPE = 'schema'
+ES_INDEX = 'discover_class'
+ES_DOC_TYPE = 'doc'
 
 # *****************************************************************************
 # Tornado URL Patterns
@@ -30,14 +31,16 @@ ES_DOC_TYPE = 'schema'
 API_ENDPOINTS = [
     (r"/api/proxy/?", ProxyHandler),
     (r"/api/query/?", QueryHandler),
-    (r"/api/registry/?", RegistryHandler),
+    (r"/api/registry/(.+)/(.+)/?", RegistryHandler),
     (r"/api/registry/(.+)/?", RegistryHandler),
+    (r"/api/registry/?", RegistryHandler),
+    (r"/api/view/?", SchemaViewHandler),
 ]
 APP_LIST = API_ENDPOINTS + WEB_ENDPOINTS
 
 # *****************************************************************************
-# Biothings Query Settings
+# Biothings SDK Settings
 # *****************************************************************************
-# Subclass of biothings.web.api.es.query_builder.ESQueryBuilder
+ACCESS_CONTROL_ALLOW_METHODS = 'HEAD,GET,POST,DELETE,PUT,OPTIONS'
 ES_QUERY_BUILDER = DiscoveryQueryBuilder
 DISABLE_CACHING = True
