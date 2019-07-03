@@ -1,0 +1,419 @@
+{% extends "main.html" %}
+{% block content %}
+{% include "header.html" %}
+<style>
+
+</style>
+<div id="registry" class="jumbotron" style="min-height:80vh;">
+  <div class="row">
+
+    <div class="col-sm-12 col-md-10 col-lg-7" style="margin:auto;">
+      <h1 class="text-center logoText mb-5 mt-5">REGISTRY</h1>
+      <div class="bg-light padding20">
+        <form @submit.prevent="search(query)">
+          <div class="form-group form-row">
+            <input class="form-control col-6" id="search_query" type="text" v-model="query" name="query" placeholder="Search Registry" >
+            <button class="col btn ml-2 themeButton text-light pulse" type="button" @click.prevent="search(query)">Search</button>
+            <button class="col btn ml-2 btn-secondary fill" type="button" @click.prevent="query='';registry=[]">Reset</button>
+          </div>
+        </form>
+        <!-- <div class="form-group form-inline m-0 ">
+          <select class="browser-default form-control form-control-sm" @change='sortResults($event)'>
+             <option value="" disabled selected>Sort By</option>
+             <option value="Search Relevance">Relevance (default)</option>
+             <option value="Alpabethically A-Z">Alpabethically A-Z</option>
+             <option value="Alpabethically Z-A">Alpabethically Z-A</option>
+             <option value="Recently Updated">Recently Updated</option>
+          </select>
+        </div> -->
+      </div>
+      <div id="searching" class="progress" style="display:none;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+      </div>
+      <div class="resultsTab mt-3 p-1 bg-secondary text-light" v-text="registryTotal+' Results'">
+
+      </div>
+      <ul class="list-group context" style="border-top:solid 3px var(--main)">
+        <li class="list-group-item d-flex justify-content-center align-items-center text-muted p-1" style="background:#d0d0d0;">
+          <small v-if="registry.length && query" v-text="'results for '+query">
+          </small>
+        </li>
+        <template v-if="registry.length" v-for="(item,index) in registryResults">
+          <registry-item :item='item' :key="index"></registry-item>
+        </template>
+        <li v-if="!registry.length" class="text-center text-muted list-group-item">
+          <div class="jumbotron">
+            <h4>Search for existing schemas</h4>
+            <h5>For example:</h5>
+            <a href="#" class="badge mainBackLight text-light mr-1" @click.prevent='search("Thing")'>Thing</a>
+            <a href="#" class="badge mainBackLight text-light mr-1" @click.prevent='search("CreativeWork")'>CreativeWork</a>
+            <a href="#" class="badge mainBackLight text-light mr-1" @click.prevent='search("Dataset")'>Dataset</a>
+          </div>
+        </li>
+      </ul>
+      <div class="bg-light">
+        <div class="row">
+          <nav class="m-auto ">
+            <ul class="pagination m-2 flex-wrap p-2">
+              <li class="page-item" :class="{ 'disabled': page <= 1 }">
+                <a class="page-link" @click.prevent="prevPage()">&lt;</a>
+              </li>
+              <li class="page-item" :class="{ 'active': page == n, 'bg-primary': page == n, 'white-text': page == n  }" v-for="n in pages">
+                <a href="#" class="page-link" @click.prevent="page = n" v-text="n"></a>
+              </li>
+              <li class="page-item" :class="{ 'disabled': page >= pages }">
+                <a class="page-link" @click.prevent="nextPage()">&gt;</a>
+              </li>
+            </ul>
+          </nav>
+          <div class="col-sm-12 right-align form-group">
+            <select class="perPage form-control form-control-sm w-50 m-auto" v-model="perPage" @change="calculatePages" id="perPage">
+                <option value="" disabled selected>Shown Per Page</option>
+                <option value="20">20 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.4.2/vue.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/jquery.mark.es6.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/jquery.mark.min.js"></script>
+<script src="/static/js/lodash.js"></script>
+<script src="https://unpkg.com/tippy.js@3/dist/tippy.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@7.28.11/dist/sweetalert2.all.min.js"></script>
+<script>
+
+Vue.component('registry-item', {
+  data: function(){
+    return{
+      options:false
+    }
+  },
+  props: ['item'],
+  methods:{
+    saveDataAndRedirect(item,redirectUrl){
+      if (item && item.uri) {
+        let dataUrl = item.uri;
+        $('#searching').show();
+        if (!dataUrl.includes('.jsonld') && item.prefix === 'schema') {
+          dataUrl = dataUrl+".jsonld"
+        }
+        axios.get('/api/proxy?url='+dataUrl).then(function (res) {
+          console.log('proxy res')
+          console.log(res.data)
+          if (res.data) {
+            let obj = JSON.stringify(res.data)
+            localStorage.setItem('datasetData',obj);
+            // console.log(item)
+            localStorage.setItem('editFrom',item.prefix+':'+item.label);
+            window.location.href = redirectUrl;
+          }
+          $('#searching').hide();
+        });
+      }else{
+        Swal.fire(
+          'Oops!',
+          'No schema URL found for this class',
+          'error'
+        );
+      }
+    },
+    getSubclass(parents){
+      if (parents) {
+        let sub = parents[0].split(', ');
+        return sub[sub.length-1]
+      }else{
+        return 'This class has no subclass'
+      }
+    },
+    getPropTotal(){
+      if (this.item.hasOwnProperty('properties')) {
+        return this.item.properties.length
+      }else{
+        return '0'
+      }
+    }
+  },
+  watch:{
+  },
+  mounted: function(){
+    tippy('#'+this.item.label, {
+      content: "<div class='alert alert-info m-0 text-left'><pre style='font-size:10px;'>"+JSON.stringify(this.item,null,2)+"</pre></div>" || "<div class='alert alert-warning m-0'>No Description Available</div>",
+      trigger:'click'
+    })
+  },
+  template: `<li class="list-group-item list-group-item-action p-0 pointer" @click.prevent="options=!options">
+    <div class="d-flex">
+      <div class="flex-grow-1 p-2">
+        <div class="d-flex justify-content-between w-100">
+          <h5 class="mb-1 mainTextDark">
+            <small v-text="item.prefix"></small>:<span v-text="item.label"></span> <small><i :id="item.label" class="fas fa-plus-circle text-primary"></i></small>
+          </h5>
+        </div>
+        <p class="mb-1">
+          <small>
+            <span class='badge mainBackLight text-light'><span v-text="getPropTotal()"></span> Properties</span>
+          </small>
+          <small>Subclass of:</small>
+          <span class="mb-1" v-text="getSubclass(item.parent_classes)"></span>
+        </p>
+
+      </div>
+      <div v-if='options' class="d-flex flex-column align-content-center w-25 flip-in-ver-left">
+        <button @click.prevent="saveDataAndRedirect(item,'/'+item.prefix+'/'+item.label)" type="button" class="btn themeButton text-light w-100 h-50 text-center align-self-center br-0"><i class="fas fa-list-alt"></i> Visualize</button>
+        <button @click.prevent="saveDataAndRedirect(item,'editor')" type="button" class="btn themeButton text-light w-100 h-50 text-center align-self-center br-0"><i class="fas fa-project-diagram"></i> Extend</button>
+      </div>
+    </div>
+  </li>`
+});
+
+// Vue.component('registry-list', {
+//   data: function(){
+//     return{
+//       result:null,
+//       showAll:false,
+//       myList:[],
+//       showButton: false
+//     }
+//   },
+//   props: ['list','slug'],
+//   methods:{
+//
+//
+//   },
+//   watch:{
+//     showAll: function(newVal, oldVal){
+//       if (newVal) {
+//         this.myList = this.list;
+//       }else{
+//         this.myList = this.list.slice(0,5);
+//       }
+//     }
+//   },
+//   mounted: function(){
+//
+//     let self = this;
+//     if (self.list.length>5) {
+//       this.showButton = true;
+//       self.myList = self.list.slice(0,5);
+//     }else{
+//       self.myList = self.list;
+//     }
+//
+//
+//   },
+//   template: `<div>
+//               <template v-if="showAll">
+//                 <div class="text-center d-block">
+//                 <a role="button" class="btn smallButton btn-secondary text-light" @click.prevent="showAll= !showAll">Show Less</a>
+//                 </div>
+//               </template>
+//               <ul>
+//                 <li v-for="c in myList">
+//                   <a :href="slug +'/'+ c" v-text="c"></a>
+//                 </li>
+//               </ul>
+//               <template v-if="!showAll && list.length>5">
+//                 <div class="text-center d-block">
+//                 <a role="button" class="btn smallButton btn-secondary text-light" @click.prevent="showAll= !showAll">Show More (<span class="bold" v-text="list.length"></span>)</a>
+//                 </div>
+//               </template>
+//               <template v-if="showAll">
+//                 <div class="text-center d-block">
+//                 <a role="button" class="btn smallButton btn-secondary text-light" @click.prevent="showAll= !showAll">Show Less</a>
+//                 </div>
+//               </template>
+//             </div>`
+// });
+
+var app = new Vue({
+      el: '#registry',
+			data: function(){
+				return {
+          alphabet : ['ALL','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'],
+          input:'',
+          linkPrefix:'./',
+          data: null,
+          user:{},
+          testURL:'',
+          registry:[],
+          registryTotal:'0',
+          sort:'Search Relevance',
+          query:'',
+          page: 1,
+          pages: 1,
+          perPage: 20,
+				}
+			},
+      methods:{
+
+        searchByUser(username){
+          var self = this;
+
+          $('#searching').show();
+
+          var context = document.querySelector(".context");
+          var instance = new Mark(context);
+          instance.unmark();
+
+          axios.get('/api/query?q=_meta.username:'+username+'&size=100').then(function (response) {
+            self.registry = response.data.hits;
+            self.registryTotal = response.data.total;
+            $( document ).ready(function() {
+              self.mark(username);
+            });
+            if (self.registryTotal) {
+              self.calculatePages();
+            }
+            $('#searching').hide();
+          });
+        },
+        mark: function(kw){
+          var context = document.querySelector(".context");
+          var instance = new Mark(context);
+          instance.mark(kw);
+        },
+        getQueryFilters: function(){
+            var filters = [];
+            var authorFilters = [];
+            var finalFilters = {};
+            this.tags.forEach(function(item){
+              if (item.active)
+                  filters.push(item.name);
+              });
+            if (filters.length > 0){
+              finalFilters['tags.name.raw'] = filters;
+            }
+
+            this.authors.forEach(function(item){
+              if (item.active){
+                authorFilters.push(item.name);
+              }
+              });
+            if (authorFilters.length){
+              finalFilters['info.contact.name.raw'] = authorFilters;
+            }
+
+            return finalFilters;
+        },
+        search(query){
+          var self = this;
+
+          query = query || "__all__";
+
+          if (query) {
+              var params = {
+                  "params": {
+                    "q": query,
+                    // 'fields': 'info,_meta,paths.path, paths.pathitem.get.summary,paths.pathitem.post.summary,paths.pathitem.delete.summary,paths.pathitem.patch.summary,paths.pathitem.put.summary,paths.pathitem.head.summary,paths.pathitem.put.summary,options.pathitem.head.summary,paths.pathitem.put.summary,paths.pathitem.trace.summary, tags,openapi,swagger,'
+                  }
+              };
+            }
+            // var filters = this.getQueryFilters();
+            // if (filters)
+            //     params["params"]["filters"] = filters;
+
+            $('#searching').show();
+
+            var context = document.querySelector(".context");
+            var instance = new Mark(context);
+            instance.unmark();
+            //clear registry to fix mixing results info
+            self.registry = [];
+            axios.get('/api/query?size=1000', params).then(function (response) {
+              console.log('%c SEARCH..','color:hotpink')
+              console.log(response.data.hits[9])
+              self.registry = response.data.hits;
+              self.registryTotal = response.data.total;
+              // mark results, doc must be loaded
+              $( document ).ready(function() {
+                self.mark(self.query);
+              });
+              if (self.registryTotal) {
+                self.calculatePages();
+              }
+              $('#searching').hide();
+            });
+        },
+        calculatePages: function () {
+          var self= this;
+          self.pages = Math.ceil(self.registry && self.registry.length / self.perPage);
+        },
+        prevPage: function () {
+          var self= this;
+          if (self.page > 1)
+              self.page -= 1
+        },
+        nextPage: function () {
+          var self= this;
+          if (self.page < self.pages)
+              self.page += 1
+        },
+        sortResults(e){
+          this.sort = e.target.value;
+        },
+        checkLoggedUser(){
+          var self = this;
+          axios.get('./user').then(res=>{
+            if (res.data.login) {
+              self.user = res.data;
+            }
+          }).catch(err=>{
+            throw err;
+          });
+        },
+    },
+    mounted:function(){
+      var self = this;
+      self.checkLoggedUser();
+    },
+    computed: {
+                registryResults: function () {
+                    var start = (this.page - 1) * this.perPage,
+                        end = start + this.perPage;
+                    return this.registry && this.registry.slice(start, end);
+                }
+            },
+  })
+
+  // Smooth Scroll-To
+
+  $('a[href*="#"]')
+    .not('[href="#"]')
+    .not('[href="#0"]')
+    .click(function(event) {
+      if (
+        location.pathname.replace(/^\//, '') == this.pathname.replace(/^\//, '')
+        &&
+        location.hostname == this.hostname
+      ) {
+        var target = $(this.hash);
+        target = target.length ? target : $('[name=' + this.hash.slice(1) + ']');
+        if (target.length) {
+          event.preventDefault();
+          $('html, body').animate({
+            scrollTop: target.offset().top
+          }, 1000, function() {
+            var $target = $(target);
+            $target.focus();
+            if ($target.is(":focus")) {
+              return false;
+            } else {
+              $target.attr('tabindex','-1');
+              $target.focus();
+            };
+          });
+        }
+      }
+    });
+</script>
+
+{% include "footer.html" %}
+{% endblock %}

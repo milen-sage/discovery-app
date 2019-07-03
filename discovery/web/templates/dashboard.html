@@ -1,0 +1,308 @@
+{% extends "main.html" %}
+{% block content %}
+{% include "header.html" %}
+<style>
+
+</style>
+<section id="dashboard">
+  <div  class="container" style="min-height: 70vh;padding-top:80px;">
+    <h1 class="text-muted caps">My Dashboard</h1>
+    <div class="dashboard">
+      <div class="row mb-5">
+        <div class="col-sm-2 p-0 userInfo bg-secondary">
+          <div class="pRelative">
+            <img :src="user.avatar_url" width="100%" alt="logo" style="z-index:1"/>
+            <div class="clip bg-secondary pAbsolute" style="z-index:2"></div>
+          </div>
+          <div class="bg-secondary text-light p-3 text-center">
+            <template v-if="user && user.name">
+              <p class="text-light mt-4 lighter"  v-text="user.name" v-text="user.name"></p>
+            </template>
+            <a class="text-light link"  target="_blank" :href="'http://www.github.com/'+user.login">
+              <i class="fab fa-github"></i> <span v-text="user.login"></span>
+            </a>
+          </div>
+        </div>
+        <div class="col-sm-10">
+          <div class="mt-3 text-muted lighter">
+            <div class="numberCircle mainBackLight" v-text="dashboardTotal"></div> Registered Schemas
+          </div>
+          <table class="table">
+            <thead class="bg-light text-muted">
+              <tr>
+                <th scope="col" class="lighter">Namespace Registered</th>
+                <th scope="col" class="lighter">Source URL</th>
+                <th scope="col" class="lighter">View</th>
+                <th scope="col" class="lighter">Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-if="dashboard && dashboard.length">
+                <tr v-for="item in dashboard">
+                  <td>
+                    <a target="_blank" :href="'/'+item.name+'/'" class=" d-block">
+                      <h4 v-text="item.name" class="d-inline"></h4>
+                    </a>
+                    <button style="zoom:.7" class="btn btn-secondary btn-sm d-block" @click="selectedItem = item" data-toggle="modal" data-target="#editModal"><i class="fas fa-edit"></i> Edit</button>
+                  </td>
+                  <td>
+                    <a target="_blank" :href="item.url" :title="item.url">
+                      Source link <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  </td>
+                  <td>
+                    <a role="button" :href="'/'+item.name+'/'" class="btn btn-outline-secondary up">
+                      Visualize
+                    </a>
+                  </td>
+                  <td>
+                    <button @click.prevent="deleteSelected(item.name)" class="btn btn-outline-secondary fill">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <template v-else>
+                <tr>
+                  <td colspan="6" class="text-center text-muted">
+                    No Contributions Yet
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header p-1" >
+            <!-- <h5 class="modal-title" id="exampleModalLabel">Edit</h5> -->
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body" v-if="selectedItem">
+            <form @submit.prevent="updateSlug()">
+              <div class="form-group">
+                <small>
+                  Enter your new slug then hit Save.
+                </small>
+                <textarea required="" data-parsley-trigger="keyup" data-parsley-minlength="2" data-parsley-maxlength="30" data-parsley-minlength-message="Must me at least 2 letters" data-parsley-validation-threshold="10" type="text" rows="1" class="form-control" id="slugInput" v-model='slugInput'></textarea>
+                <template v-if="availableSlug && slugInput.length">
+                  <small class="text-success bold"><i class="fas fa-check"></i> AVAILABLE</small>
+                </template>
+                <template v-if="!availableSlug && slugInput.length">
+                  <small class="text-danger bold"><i class="fas fa-times"></i> NOT AVAILABLE</small>
+                </template>
+                <template v-if="invalidChars">
+                  <br />
+                  <small class="text-warning bold"><i class="fas fa-times"></i> INVALID CHARACTERS</small>
+                </template>
+                <hr />
+                <p class="m-2" :class="[availableSlug ? 'mainTextDark' : 'text-danger']">
+                  discovery.biothings.io/<span class="bold" v-text='slugInput'></span>
+                </p>
+              <button v-if="availableSlug && slugInput.length" type="submit" @click.prevent="updateSlug()" class="btn themeButton text-light mt-3">Save</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+<script src="/static/js/lodash.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@7.28.11/dist/sweetalert2.all.min.js"></script>
+<script>
+var app = new Vue({
+      el: '#dashboard',
+			data: function(){
+				return {
+          user:{},
+          dashboard:[],
+          dashboardTotal:"0",
+          selectedItem:{},
+          slugInput:'',
+          availableSlug: false,
+          invalidChars : false
+				}
+			},
+      watch:{
+        slugInput: function(newInput, oldInput){
+          var self = this;
+          self.slugInput = self.slugInput.toLowerCase();
+          var re = /^[a-zA-Z0-9_.-]*$/;
+          if (!re.test(newInput) ) {
+            self.invalidChars = true;
+          }else{
+            self.invalidChars = false;
+          }
+
+          if (newInput && !self.invalidChars) {
+            axios.get(`/api/registry/`+self.slugInput).then(function (response) {
+              if (response.data.url) {
+                self.availableSlug= false;
+              }
+            }).catch(error => {
+              self.availableSlug= true;
+              throw error;
+            });
+          }
+        },
+        selectedItem:function(n,o){
+          // console.log('new',n);
+        }
+      },
+			methods:{
+        updateSlug(){
+          let self = this;
+          axios.put('/api/registry/'+self.selectedItem["_id"],{"slug":self.slugInput}).then(res=>{
+            console.log(res.data)
+            if (res.data.success) {
+              swal({
+                toast: true,
+                timer: 3000,
+                showConfirmButton: false,
+                title: "Success",
+                footer:'Slug Updated',
+                position: 'center-top',
+                type:'success'
+              });
+              self.getAll();
+            }else{
+              swal({
+                toast: true,
+                timer: 3000,
+                showConfirmButton: false,
+                title: "Oh no!",
+                footer:'Slug Update failed',
+                position: 'center-top',
+                type:'error'
+              });
+            }
+          }).catch(err=>{
+            swal({
+              toast: true,
+              timer: 3000,
+              showConfirmButton: false,
+              title: "Oh no!",
+              footer:'Slug Update Failed, let us know if this issue persists',
+              position: 'center-top',
+              type:'error'
+            });
+            throw err;
+          });
+        },
+        deleteSelected(name){
+          var self = this;
+          Swal.fire({
+            title: '<h3>Are you sure you want to delete schema:  <span class="text-danger bold">'+name+'</span> ?</h3>',
+            text: "You won't be able to revert this!",
+            type:'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#006476',
+            cancelButtonColor: '#5C3069',
+            confirmButtonText: 'Yes, delete it!'
+          }).then((result) => {
+
+            if (result.value) {
+              axios.delete('/api/registry/'+name).then(res=>{
+                if (res.status) {
+                  switch (res.status) {
+                    case 200:
+                      Swal.fire(
+                        'Success',
+                        'Schema deleted',
+                        'success'
+                      );
+                      self.getAll();
+                      break;
+                      case 401:
+                        Swal.fire(
+                          'Oh, no!',
+                          'You must sign-in to delete this schema',
+                          'error'
+                        );
+                        self.getAll();
+                        break;
+                        case 403:
+                          Swal.fire(
+                            'Oh, no!',
+                            'You do not have permission to delete this schema',
+                            'error'
+                          );
+                          self.getAll();
+                          break;
+                          case 404:
+                            Swal.fire(
+                              'Oh, no!',
+                              'This schema does not seem to exist',
+                              'error'
+                            );
+                            self.getAll();
+                            break;
+                    default:
+                      Swal.fire(
+                        'Oh no!',
+                        'something went wrong',
+                        'error'
+                      );
+                  }
+                }
+
+
+              }).catch(err=>{
+                throw err;
+                Swal.fire(
+                  'Oh no!',
+                  'something went wrong',
+                  'error'
+                );
+              });
+
+            }
+          });
+        },
+        getAll(){
+          let self= this;
+          self.dashboard = [];
+          if (this.user.login) {
+            axios.get('/api/user/'+self.user.login).then(res=>{
+              console.log(res.data)
+              self.dashboard = res.data.hits;
+              self.dashboardTotal = res.data.total;
+            }).catch(err=>{
+              throw err;
+            });
+          }
+        },
+        checkLoggedUser(){
+          var self = this;
+          axios.get('/user').then(res=>{
+            if (res.data.login) {
+              self.user = res.data;
+              self.getAll();
+            }
+          }).catch(err=>{
+            throw err;
+          });
+        },
+			},
+			mounted:function(){
+
+			},
+      created:function(){
+        this.checkLoggedUser()
+      }
+		});
+
+</script>
+{% include "footer.html" %}
+{% endblock %}
