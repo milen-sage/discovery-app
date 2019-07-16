@@ -9,18 +9,18 @@
 '''
 
 import gzip
+import hashlib
 import logging
 from datetime import datetime
 
-from elasticsearch_dsl import (Binary, Date, Document, InnerDoc,
-                               Keyword, Nested, Object, Text)
-
 from biothings_schema import Schema as SchemaParser
+from elasticsearch_dsl import (Binary, Date, Document, InnerDoc, Keyword,
+                               Nested, Object, Text)
 
 LOGGER = logging.getLogger(__name__)
 
 
-class Metadata(InnerDoc):
+class SchemaMeta(InnerDoc):
     '''
         The Metadata of a Schema
 
@@ -28,8 +28,8 @@ class Metadata(InnerDoc):
         - Timestamp corresponds to ~raw processing time.
 
     '''
-    url = Text(required=True)
-    username = Text(required=True)
+    url = Text()
+    username = Keyword(required=True)
     timestamp = Date()
 
     def stamp(self):
@@ -44,7 +44,7 @@ class Schema(Document):
         A Top-Level Schema
         https://schema.org/docs/schemas.html
     '''
-    _meta = Object(Metadata, required=True)
+    _meta = Object(SchemaMeta, required=True)
     context = Text()
     locals()['~raw'] = Binary()
 
@@ -96,7 +96,7 @@ class Schema(Document):
         return None
 
 
-class Prop(InnerDoc):
+class SchemaClassProp(InnerDoc):
     '''
     A Class Property
     '''
@@ -107,7 +107,7 @@ class Prop(InnerDoc):
     description = Text()
 
 
-class Class(Document):
+class SchemaClass(Document):
     '''
         A Class(Type) in a Schema
         https://schema.org/docs/full.html
@@ -121,7 +121,7 @@ class Class(Document):
     label = Text(required=True)
     parent_classes = Text(multi=True)  # immediate parent class(es) only
     description = Text()
-    properties = Nested(Prop)  # properties that belong directly to this class
+    properties = Nested(SchemaClassProp)  # properties that belong directly to this class
 
     class Index:
         '''
@@ -174,7 +174,7 @@ class Class(Document):
                     es_class.parent_classes.append(', '.join(map(str, parent_line)))
 
                 for prop in class_.list_properties(group_by_class=False):
-                    es_class.properties.append(Prop(
+                    es_class.properties.append(SchemaClassProp(
                         uri=prop['uri'],
                         curie=prop['curie'],
                         range=prop['range'],
@@ -199,4 +199,42 @@ class Class(Document):
 
         self.meta.id = f"{self.prefix}:{self.label}"
 
-        super().save(**kwargs)
+        return super().save(**kwargs)
+
+
+class DatasetMetadata(Document):
+    '''
+        Documents of a certain Schema
+    '''
+    _meta = Object(SchemaMeta, required=True)
+    identifier = Text(required=True)
+    name = Text()
+    description = Text()
+    _raw = Object(enabled=False)
+
+    class Index:
+        '''
+        Associated ES index
+        '''
+        name = 'discover_metadata'
+        settings = {
+            "number_of_replicas": 0
+        }
+
+    @classmethod
+    def from_json(cls, doc, user):
+        meta = cls()
+        meta.identifier = doc['identifier']
+        meta.name = doc['name']
+        meta.description = doc['description']
+        meta._meta.username = user
+        meta._raw = doc
+        return meta
+
+    def save(self, **kwargs):
+        '''
+        Create _id basing on identifier
+        '''
+        self.meta.id = hashlib.blake2b(
+            self.identifier.encode(), digest_size=8).hexdigest()
+        return super().save(**kwargs)

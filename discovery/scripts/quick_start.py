@@ -2,7 +2,7 @@
     Empty Index Creator
 '''
 
-from discovery.api.es.doc import Class, Schema
+from discovery.api.es.doc import SchemaClass, Schema, DatasetMetadata
 from elasticsearch_dsl import Index
 
 
@@ -18,7 +18,8 @@ def main():
     index_primary = Index('discover_schema')
     index_secondary = Index('discover_class')
 
-    # remove existing index
+    # remove existing indexes
+
     if index_primary.exists():
         index_primary.delete()
 
@@ -26,7 +27,8 @@ def main():
         index_secondary.delete()
 
     Schema.init()
-    Class.init()
+    SchemaClass.init()
+    DatasetMetadata.init()
 
 
 if __name__ == "__main__":
