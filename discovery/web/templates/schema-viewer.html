@@ -87,18 +87,19 @@
   </div>
   <!-- HOMEPAGE MODE -->
   <div class="jumbotron" v-if="!query">
-    <div class="engineBox w-50 m-auto p-2" v-if='!namespaceRegistered'>
+    <!-- <div class="engineBox w-50 m-auto p-2" v-if='!namespaceRegistered'>
       <div class="bg-light p-3 text-center clickBAck">
         <h3 class="mainTextDark">Register Your Schema</h3>
         <button role="button" class="btn btn-info" data-toggle="modal" data-target="#exampleModal">Click Here</button>
       </div>
     </div>
+    -->
     <div class="text-center p-5">
       <h1 style="font-size:3em" class="logoText" v-if='namespaceRegistered' v-text='namespace'></h1>
     </div>
     <div class="row">
       <form class="col-sm-12">
-        <a class="bold mainTextDark pointer m-2 toggleLink" style="float:right" @click='flipView()'>Change View <i class="fas fa-retweet"></i></a>
+       <!--  <a class="bold mainTextDark pointer m-2 toggleLink" style="float:right" @click='flipView()'>Change View <i class="fas fa-retweet"></i></a> -->
         <div class="input-group mb-2 col-sm-12 col-md-4">
           <div class="input-group-prepend">
             <div class="input-group-text bg-info text-light"><i class="fas fa-search"></i></div>
