@@ -66,11 +66,11 @@ class SchemaViewHandler(APIBaseHandler):
                 for property_ in properties:
                     property_.pop('object')
                     property_ = {key: value for key, value in property_.items() if value}
-
                 class_ = {
                     "name": klass.name,
                     "prefix": klass.prefix,
-                    "label": klass.label,
+                    "label":klass.label,  
+                    "displayName": klass.displayName,
                     "parent_classes": [', '.join(map(str, parent_line))
                                        for parent_line in klass.parent_classes],
                     "description": klass.description,

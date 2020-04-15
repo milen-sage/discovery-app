@@ -103,6 +103,7 @@ class SchemaClassProp(InnerDoc):
     uri = Text()
     curie = Text(required=True)
     label = Text()
+    displayName = Text()
     range = Text(multi=True)
     description = Text()
 
@@ -119,6 +120,7 @@ class SchemaClass(Document):
     uri = Text()
     prefix = Text(required=True)  # the prefix (schema _id, not url) it is defined in
     label = Text(required=True)
+    displayName = Text()
     parent_classes = Text(multi=True)  # immediate parent class(es) only
     description = Text()
     properties = Nested(SchemaClassProp)  # properties that belong directly to this class
@@ -168,6 +170,7 @@ class SchemaClass(Document):
                 es_class.uri = class_.uri
                 es_class.prefix = class_.prefix
                 es_class.label = class_.label
+                es_class.displayName = class_.displayName
                 es_class.description = class_.description
 
                 for parent_line in class_.parent_classes:
@@ -178,6 +181,7 @@ class SchemaClass(Document):
                         uri=prop['uri'],
                         curie=prop['curie'],
                         range=prop['range'],
+                        displayName = prop['displayName'],
                         label=prop['label'],
                         description=prop['description']
                     ))
@@ -198,6 +202,7 @@ class SchemaClass(Document):
     def save(self, **kwargs):
 
         self.meta.id = f"{self.prefix}:{self.label}"
+        #self.meta.id = f"{self.prefix}:{self.displayName}"
 
         return super().save(**kwargs)
 

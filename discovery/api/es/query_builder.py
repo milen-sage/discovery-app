@@ -45,6 +45,7 @@ class DiscoveryQueryBuilder(ESQueryBuilder):
                         {
                             "query_string": {
                                 "default_field": "label",
+                                #"default_field": "displayName",
                                 "query": url_escape(q) + "*",
                                 "boost": 0.8
                             }
